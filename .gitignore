@@ -53,3 +53,12 @@ dkms.conf
 
 # debug information files
 *.dwo
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/.gitignore
+/.idea/awsToolkit.xml
+/.idea/db-forest-config.xml
+/.idea/detekt.xml
+/.idea/editor.xml
+/.idea/modules.xml
+/.idea/sotrii-tp1_26Co2026-04.iml
+/.idea/vcs.xml
