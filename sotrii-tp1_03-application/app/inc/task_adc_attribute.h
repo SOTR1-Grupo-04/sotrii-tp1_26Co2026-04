@@ -41,17 +41,44 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include "main.h"
+#include "cmsis_os.h"
 
 /********************** macros ***********************************************/
+#define ADC_QUEUE_LENGTH		10u
+#define ADC_QUEUE_ITEM_SIZE		sizeof(uint32_t)
+#define ADC_TASK_STACK_SIZE		(2 * configMINIMAL_STACK_SIZE)
+#define ADC_SPOOLER_SIZE		8u
 
 /********************** typedef **********************************************/
-/* Structure of Task */
+// Spooler tipo buffer circular
+typedef struct {
+	uint32_t             buffer[ADC_SPOOLER_SIZE];
+	volatile uint32_t    head;
+	volatile uint32_t    tail;
+} adc_spooler_t;
 
+typedef struct {
+	ADC_HandleTypeDef    *h_adc;
+	QueueHandle_t        h_queue;
+	SemaphoreHandle_t    h_semaphore;
+	TaskHandle_t         h_task;
+	uint32_t             adc_value;
 
-/* Structure of ADC Tx */
+	adc_spooler_t        input_spooler;
+	adc_spooler_t        output_spooler;
 
+	StaticQueue_t        queue_cb;
+	uint8_t              queue_storage[ADC_QUEUE_LENGTH * ADC_QUEUE_ITEM_SIZE];
+
+	StaticSemaphore_t    semaphore_cb;
+
+	StaticTask_t         task_cb;
+	StackType_t          task_stack[ADC_TASK_STACK_SIZE];
+} adc_device_t;
 
 /********************** external data declaration ****************************/
+extern adc_device_t adc_device;
 
 /********************** external functions declaration ***********************/
 

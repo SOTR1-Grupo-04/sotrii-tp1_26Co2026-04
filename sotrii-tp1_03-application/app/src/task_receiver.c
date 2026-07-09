@@ -44,6 +44,7 @@
 /* Application & Tasks includes */
 #include "board.h"
 #include "app.h"
+#include "task_adc_attribute.h"
 #include "task_adc_interface.h"
 
 /********************** macros and definitions *******************************/
@@ -73,15 +74,36 @@ void task_receiver(void *parameters)
 	LOGGER_INFO(" ");
 	LOGGER_INFO("  %s is running - Tick [mS] = %lu", pcTaskGetName(NULL), xTaskGetTickCount());
 
-	/* As per most tasks, this task is implemented in an infinite loop. */
 	for (;;)
-    {
-		/* Update Task Counter */
-		g_task_receiver_cnt++;
+	{
+		uint32_t adc_value;
+		adc_spooler_t *output_spooler = &adc_device.output_spooler;
 
-    	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_receiver_wait_250mS);
-		vTaskDelay(TASK_RECEIVER_DEL_MAX);
+		// Leer de la queue y acumular en el output spooler
+		if (read_adc(&hadc1, &adc_value) == pdTRUE)
+		{
+			uint32_t next_head = (output_spooler->head + 1) % ADC_SPOOLER_SIZE;
+			if (next_head != output_spooler->tail)
+			{
+				output_spooler->buffer[output_spooler->head] = adc_value;
+				output_spooler->head = next_head; // Solo esta task escribe head, no hace falta exclusion mutua
+			}
+		}
+
+		// Si el output spooler esta lleno, proceamos en lote todo lo que hay
+		uint32_t spooler_count = (output_spooler->head - output_spooler->tail + ADC_SPOOLER_SIZE) % ADC_SPOOLER_SIZE;
+		if (spooler_count >= (ADC_SPOOLER_SIZE - 1))
+		{
+			// Spooler lleno
+			LOGGER_INFO("   ==> Task RECEIVER - Batch of %lu values:", spooler_count);
+			while (output_spooler->tail != output_spooler->head)
+			{
+				uint32_t val = output_spooler->buffer[output_spooler->tail];
+				output_spooler->tail = (output_spooler->tail + 1) % ADC_SPOOLER_SIZE;
+				g_task_receiver_cnt++;
+				LOGGER_INFO("       ADC Value: %lu", val);
+			}
+		}
 	}
 }
 

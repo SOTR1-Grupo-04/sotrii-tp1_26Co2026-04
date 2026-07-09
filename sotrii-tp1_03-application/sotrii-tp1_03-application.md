@@ -1,4 +1,5 @@
-# Análisis Técnico del Sistema Embebido (Event-Triggered con FreeRTOS)
+# Actividad 3
+## Paso 3: Preguntas a Gemini
 
 Este documento presenta un análisis detallado del funcionamiento del código fuente provisto, el cual constituye una plantilla estructurada para un sistema de tiempo real basado en un enfoque **Event-Triggered (guiado por eventos)** utilizando el kernel **FreeRTOS**.
 
@@ -104,3 +105,32 @@ El sistema expone un conjunto de variables globales destinadas a la auditoría d
 | `hal_xxxx_callback_cnt` | `app_it.c` | Métrica que computa la cantidad de conversiones completadas por el hardware ADC. |
 | `hal_xxxx_callback_runtime_us`| `app_it.c` | Almacena la marca de tiempo (en microsegundos) de la última interrupción del ADC. |
 | `g_task_receiver_cnt` | `task_receiver.c` | Contador de iteraciones completas de la tarea testigo encargada de la recepción. |
+
+## Paso 6: Implementación del Device Driver ADC
+
+Se implementó un Device Driver ADC con arquitectura Gatekeeper con las siguientes características:
+
+### Estructura del driver
+- **`adc_device_t`** (`task_adc_attribute.h`): estructura que encapsula el handle HAL, queue, semáforo binario, handle de tarea, spoolers de entrada/salida y buffers estáticos.
+- **Static allocation**: queue, semáforo y tarea creados con `xQueueCreateStatic`, `xSemaphoreCreateBinaryStatic` y `xTaskCreateStatic`.
+
+### Observaciones
+- Se tuvo que modificar la firma de `read_adc()` a `extern BaseType_t read_adc(ADC_HandleTypeDef *h_adc_device, uint32_t *value)` para poder leer el valor de retorno
+
+### Funcionamiento
+- **ISR**: el callback de la interrupción escribe el valor en el input spooler (buffer circular sin locks) y da el semáforo binario con `xSemaphoreGiveFromISR`.
+- **Tarea Gatekeeper** (`task_adc`): espera el semáforo, vacía el input spooler, envía cada valor a la queue y relanza la conversión DMA.
+- **Tarea consumidora** (`task_receiver`): lee de la queue con `read_adc`, acumula en el output spooler y procesa el lote entero cuando se llena.
+
+### Spoolers
+- **Input spooler**: buffer circular entre ISR y `task_adc`. No usa locks, ya que la ISR escribe `head` y la `task_adc` escribe `tail` (no hay recurso compartido).
+- **Output spooler**: buffer circular en `task_receiver` que acumula lecturas para procesamiento en lote.
+
+### Medición de WCET
+Se mide el tiempo de ejecución con el contador de ciclos DWT (`cycle_counter_reset` / `cycle_counter_get_time_us`) en `task_adc` y `HAL_ADC_ConvCpltCallback`.
+
+**Resultados**
+
+![img.png](wcet.png)
+
+Ambos tiempos en la imagen están expresados en microsegundos. Se puede ver que el tiempo insumido en la interrupción es mínimo, lo cual es algo deseado. 

@@ -67,14 +67,7 @@ uint32_t volatile g_app_tick_cnt;
 uint32_t g_task_idle_cnt;
 uint32_t g_app_stack_overflow_cnt;
 
-/* Declare a variable of type QueueHandle_t. This is used to reference queues*/
-
-/* Declare a variable of type SemaphoreHandle_t (binary or counting) or mutex.
- * This is used to reference the semaphore that is used to synchronize a thread
- * with other thread or to ensure mutual exclusive access to...*/
-
 /* Declare a variable of type TaskHandle_t. This is used to reference threads. */
-TaskHandle_t h_task_sender;
 TaskHandle_t h_task_receiver;
 
 /********************** external functions definition ************************/
@@ -131,7 +124,7 @@ void app_init(void)
      * one task in this state at the moment), but the currently run task ID
      * is stored in variable pxCurrentTCB */
 
-    /* ADC Device Diver Init */
+    /* ADC Device Driver Init */
     open_adc(&hadc1);
 
     /* Application Interrupts Init */

@@ -42,6 +42,7 @@
 
 /* Application & Tasks includes */
 #include "board.h"
+#include "task_adc_attribute.h"
 
 /********************** macros and definitions *******************************/
 #define HAL_XXXX_CALLBACK_CNT_INI			0ul
@@ -101,8 +102,25 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
 	// Check which version of the adc triggered this callback
 	if (hadc->Instance == ADC1)
 	{
+		cycle_counter_reset();
+
 		hal_xxxx_callback_flag = true;
 		hal_xxxx_callback_cnt++;
+
+		// Guardar valor en el input spooler (buffer circular). Escribe desde head
+		adc_spooler_t *input_spooler = &adc_device.input_spooler;
+		uint32_t next_head = (input_spooler->head + 1) % ADC_SPOOLER_SIZE;
+		if (next_head != input_spooler->tail)
+		{
+			input_spooler->buffer[input_spooler->head] = adc_device.adc_value;
+			input_spooler->head = next_head; // Head solo se escribe aca, no hace falta exclusion mutua
+		}
+
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		// Se da el semaforo para despertar a la tarea task_adc que lo estaba esperando
+		xSemaphoreGiveFromISR(adc_device.h_semaphore, &xHigherPriorityTaskWoken);
+		// Se fuerza al scheduler a elegir la tarea lista de mayor prioridad
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 
 		hal_xxxx_callback_runtime_us = cycle_counter_get_time_us();
 	}
