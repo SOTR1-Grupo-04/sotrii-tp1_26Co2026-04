@@ -49,7 +49,25 @@ extern "C" {
 
 
 /* Structure of UART Tx */
+typedef struct
+{
+    uint32_t device_id;
+    UART_HandleTypeDef *huart;
 
+    QueueHandle_t rx_queue;
+    QueueHandle_t rx_queue;
+
+    TaskHandle_t tx_gatekeeper;
+    TaskHandle_t rx_gatekeeper;
+
+} uart_device_t;
+
+
+typedef struct 
+{
+    uint8_t* buffer;
+    size_t size;
+} dynamic_data_spooler;
 
 /********************** external data declaration ****************************/
 
