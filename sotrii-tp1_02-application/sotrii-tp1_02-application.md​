@@ -1,0 +1,92 @@
+# Análisis Detallado del Código Fuente: Sistema Activado por Eventos (ETS) sobre FreeRTOS y STM32
+
+Este documento técnico presenta un análisis exhaustivo del funcionamiento del código fuente perteneciente al proyecto de demostración **sotrii-tp1_02-application**, desarrollado para la arquitectura STM32 bajo el sistema operativo de tiempo real **FreeRTOS**. El sistema implementa un modelo de **Sistemas Activados por Eventos (ETS - Event-Triggered Systems)**, estructurando la lógica en tareas concurrentes, interrupciones hardware, capas de abstracción (HAL/Interfaces) y mecanismos de monitoreo del kernel.
+
+---
+
+## 1. Arquitectura y Módulos del Sistema
+
+El proyecto está organizado de forma modular, delimitando las responsabilidades de inicialización, ejecución de tareas, manejo de interrupciones y monitoreo de rendimiento.
+
+| Módulo / Archivo | Capa de Abstracción | Responsabilidad Principal |
+| :--- | :--- | :--- |
+| **`app.c`** | Aplicación / RTOS | Punto de entrada de la aplicación. Inicializa variables globales, periféricos, contadores y crea las tareas del sistema operativo. |
+| **`app_it.c`** | Hardware / HAL | Gestión de rutinas de servicio de interrupción (ISR) y callbacks asíncronos de los periféricos (GPIO y UART). |
+| **`task_sender.c` / `task_receiver.c`** | Aplicación (Tareas) | Tareas gemelas de demostración que ilustran la concurrencia, retardos temporizados y registro de trazas en el log. |
+| **`task_uart.c` / `task_uart_interface.c`** | Control Periféricos | Implementación y abstracción de la comunicación serial mediante tareas de transmisión/recepción y funciones de interfaz. |
+| **`freertos.c`** | Kernel RTOS | Implementación de funciones de gancho (*hooks*) del kernel para monitorear inactividad, ticks del sistema y desbordamientos de pila. |
+
+---
+
+## 2. Análisis Detallado por Archivo
+
+### 2.1. Inicialización y Gestión Principal (`app.c`)
+El archivo `app.c` actúa como el maestro de orquestación de la aplicación en el espacio del usuario.
+* **Contadores Globales y Diagnóstico:** En la función `app_init(void)`, se ponen a cero los contadores principales:
+  * `g_app_tick_cnt`: Lleva el conteo de los ticks del sistema operativo.
+  * `g_task_idle_cnt`: Contabiliza las ejecuciones de la tarea de inactividad (*Idle Task*).
+  * `g_app_stack_overflow_cnt`: Registra incidencias de desbordamiento de pila.
+* **Trazabilidad Inicial:** Se emplean macros `LOGGER_INFO` para emitir mensajes por la consola de depuración (vía semihosting o UART según configuración), mostrando el nombre de la aplicación y el tiempo en milisegundos mediante la API `xTaskGetTickCount()`.
+* **Creación de Tareas FreeRTOS:** Se instancian las tareas del sistema mediante `xTaskCreate`:
+  * **Task Sender:** Se vincula a la función `task_sender`, reservando un tamaño de pila de `2 * configMINIMAL_STACK_SIZE` palabras y asignándole la prioridad `tskIDLE_PRIORITY + 1ul`.
+  * **Task Receiver:** Se instancia de manera análoga, apuntando a la función `task_receiver` con idénticos parámetros de memoria y prioridad.
+  * Para ambas creaciones, se verifica que el valor de retorno sea exitoso utilizando la macro de aserción `configASSERT(pdPASS == ret)`.
+* **Arranque de Periféricos:** Se invoca `xPortGetFreeHeapSize()` para auditar la memoria Heap disponible, se inicializa la abstracción del puerto serial con `open_uart(&huart2)` y se configuran las interrupciones temporales e instrumentación de hardware mediante `app_it_init()` y `cycle_counter_init()`.
+
+---
+
+### 2.2. Gestión de Interrupciones y Callbacks (`app_it.c`)
+Este módulo concentra la respuesta del sistema a eventos externos asíncronos generados por el hardware.
+* **Inicialización Segura (`app_it_init`):** Para evitar condiciones de carrera durante el arranque, se deshabilitan las interrupciones a nivel de CPU utilizando directivas en ensamblador (`__asm("CPSID i");`). En este bloque protegido, se inicializan las banderas locales (`hal_xxxx_callback_flag`, `hal_xxxx_callback_cnt` y `hal_xxxx_callback_runtime_us`), restaurando posteriormente las interrupciones con `__asm("CPSIE i");`.
+* **Manejo de Interrupciones Externas (`HAL_GPIO_EXTI_Callback`):** Evalúa el identificador del pin que disparó la interrupción (`GPIO_Pin == BTN_A_PIN`). Constituye el punto de enganche para procesar pulsaciones de botones físicos o señales externas.
+* **Callback de Fin de Transmisión UART (`HAL_UART_TxCpltCallback`):** Invocado de forma asíncrona por el driver HAL de STM32 al concluir la transmisión de un buffer por hardware. Verificando que proviene del periférico `USART2`:
+  1. Activa una bandera de evento (`hal_xxxx_callback_flag = true`).
+  2. Incrementa el contador de interrupciones procesadas (`hal_xxxx_callback_cnt++`).
+  3. Captura un sello de tiempo de alta precisión en microsegundos utilizando la instrumentación de hardware (`cycle_counter_get_time_us()`).
+
+---
+
+### 2.3. Tareas de Demostración y Concurrencia (`task_sender.c` y `task_receiver.c`)
+Estos dos archivos implementan tareas gemelas diseñadas para evidenciar la planificación y conmutación de contexto de FreeRTOS.
+* **Estructura Simétrica y Bucle Infinito:** Ambos módulos siguen el patrón estándar de una tarea de RTOS: una fase inicial de configuración seguida de un bucle infinito (`for (;;)`).
+* **Flujo de `task_sender`:**
+  * Reinicia su variable de monitoreo local/global `g_task_sender_cnt`.
+  * Imprime en el log de depuración que ha comenzado a correr junto con el tiempo actual del tick.
+  * Dentro de su bucle, incrementa su contador, emite el mensaje de traza `"   ==> Task SENDER - Wait:   250mS"` y cede el control del procesador invocando `vTaskDelay(TASK_SENDER_DEL_MAX)`, suspendiéndose por exactamente 250 milisegundos.
+* **Flujo de `task_receiver`:**
+  * Realiza el mismo procedimiento de registro e inicialización sobre la variable `g_task_receiver_cnt`.
+  * En su bucle de ejecución, incrementa su respectivo contador, emite el mensaje `"   ==> Task RECEIVER - Wait:   250mS"` y entra en estado bloqueado por 250 milisegundos mediante `vTaskDelay(TASK_RECEIVER_DEL_MAX)`.
+* *Implicación Arquitectónica:* Al tener la misma prioridad y retrasarse por el mismo lapso temporal, el planificador de FreeRTOS alterna su ejecución de forma equilibrada, demostrando la multitarea cooperativa/apropiativa sin saturar la CPU.
+
+---
+
+### 2.4. Capa Serial y Perfilado de Rendimiento (`task_uart.c` y `task_uart_interface.c`)
+Este subsistema separa la lógica de aplicación de la gestión de entrada/salida (I/O), introduciendo perfilado de tiempo real en microsegundos.
+* **Implementación de Tareas de Comunicación (`task_uart.c`):**
+  * Define las rutinas `task_uart_tx` y `task_uart_rx`, diseñadas para manejar la transmisión y recepción serial de forma independiente.
+  * **Perfilado con Contador de Ciclos (DWT):** En cada iteración de sus bucles, las tareas reinician el contador de ciclos de hardware (`cycle_counter_reset()`), ejecutan una acción física (alternar el estado del LED de diagnóstico con `HAL_GPIO_TogglePin`) y miden el tiempo de ejecución consumido por dicha operación con `cycle_counter_get_time_us()`. Al finalizar la medición, se suspenden por 250 milisegundos.
+* **Abstracción de Interfaz (`task_uart_interface.c`):**
+  * Define los prototipos de una API estándar de controladores de dispositivos: `open_uart`, `release_uart`, `write_uart`, `read_uart` e `ioctl_uart`.
+  * En la fase actual del código, estas funciones actúan como **stubs** (plantillas de interfaz), utilizando la macro `UNUSED(h_uart_device)` para prevenir advertencias del compilador sobre variables no utilizadas, preparando el terreno para una futura implementación de drivers en capas.
+
+---
+
+### 2.5. Instrumentación del Kernel y Gancho de Eventos (`freertos.c`)
+El archivo `freertos.c` implementa las funciones de retorno (*hook functions*) que el kernel de FreeRTOS invoca ante eventos específicos del ciclo de vida del sistema.
+* **Gancho de Inactividad (`vApplicationIdleHook`):** Se ejecuta continuamente cuando el sistema operativo se encuentra en la tarea *Idle* (es decir, cuando ninguna otra tarea del sistema está en estado listo `Ready` para ejecutarse). Aquí se incrementa la variable `g_task_idle_cnt`, lo que permite inferir el porcentaje de uso o disponibilidad de tiempo de CPU.
+* **Gancho de Ticks (`vApplicationTickHook`):** Se invoca dentro de la rutina de interrupción temporal del sistema en cada ciclo del reloj (*tick*) del RTOS. Se encarga de incrementar en una unidad el contador `g_app_tick_cnt`.
+* **Gancho de Desbordamiento de Pila (`vApplicationStackOverflowHook`):** Constituye una barrera de seguridad crítica. Si FreeRTOS detecta que una tarea ha excedido los límites del *Stack* asignado durante su creación:
+  1. Se entra de forma inmediata en una sección crítica con `taskENTER_CRITICAL()`.
+  2. Se detiene el sistema utilizando la aserción `configASSERT( 0 )` para congelar la ejecución y facilitar el análisis con un depurador (debugger).
+  3. Se incrementa el contador de fallas `g_app_stack_overflow_cnt`.
+
+---
+
+## 3. Resumen y Conclusiones del Diseño
+
+El proyecto analiza la transición de programación monoteísta o de bucles finitos (bare-metal) hacia una arquitectura orientada a eventos e impulsada por un sistema operativo de tiempo real:
+
+1. **Multitarea Determínistica:** La separación de lógica en `Task Sender`, `Task Receiver` y tareas de UART garantiza que el tiempo de CPU se reparta de forma equitativa sin bloqueos activos (evitando *polling* de ciclos de CPU mediante el uso de `vTaskDelay`).
+2. **Desacoplamiento Hardware/Software:** Gracias al uso de `app_it.c` y las estructuras de interfaz en `task_uart_interface.c`, los detalles físicos de los periféricos STM32 quedan aislados de la lógica de negocio de la aplicación.
+3. **Observabilidad y Diagnóstico:** La combinación del módulo de logging, los hooks de FreeRTOS y el perfilado de tiempo en microsegundos (a través del Data Watchpoint and Trace - DWT en Cortex-M) proveen un framework robusto para medir tiempos de ejecución de ISRs y tareas, monitorear la salud de la memoria y verificar el comportamiento del sistema bajo condiciones operativas reales.
+<!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
