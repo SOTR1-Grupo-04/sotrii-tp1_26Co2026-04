@@ -163,12 +163,14 @@ void tx_uart_gatekeeper(void* uart_device)
 		return;
 	}
 	
-	dynamic_data_spooler message;
+	while (1) {
+		dynamic_data_spooler message;
 
-	if (xQueueReceive(dev->tx_queue, &message, portMAX_DELAY) == pdPASS) {
-		//write uart
-		HAL_UART_Transmit_IT(dev->huart, message.buffer, message.size);
-		vPortFree(message.buffer);
+		if (xQueueReceive(dev->tx_queue, &message, portMAX_DELAY) == pdPASS) {
+			//write uart
+			HAL_UART_Transmit_IT(dev->huart, message.buffer, message.size);
+			vPortFree(message.buffer);
+		}
 	}
 }
 
@@ -178,6 +180,10 @@ void rx_uart_gatekeeper(void* uart_device)
 	if (dev->huart == NULL) {
 		return;
 	}
+	while (1)
+	{
+		/* code */
+	}	
 }
 
 /********************** end of file ******************************************/
