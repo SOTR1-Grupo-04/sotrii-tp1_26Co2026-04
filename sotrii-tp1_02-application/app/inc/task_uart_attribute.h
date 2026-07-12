@@ -54,12 +54,13 @@ typedef struct
     uint32_t device_id;
     UART_HandleTypeDef *huart;
 
-    QueueHandle_t rx_queue;
+    QueueHandle_t tx_queue;
     QueueHandle_t rx_queue;
 
     TaskHandle_t tx_gatekeeper;
     TaskHandle_t rx_gatekeeper;
 
+    SemaphoreHandle_t rx_newData;
 } uart_device_t;
 
 
