@@ -48,6 +48,7 @@ extern "C" {
 #include <stddef.h>
 
 /********************** macros ***********************************************/
+#define UART_RX_IT_BUFFER_SIZE 200u
 
 /********************** typedef **********************************************/
 /* Structure of Task */
@@ -67,6 +68,9 @@ typedef struct
 
     SemaphoreHandle_t tx_sendEnded;
     SemaphoreHandle_t rx_newData;
+
+    uint8_t rx_it_buffer[UART_RX_IT_BUFFER_SIZE];
+    uint16_t rx_size;
 } uart_device_t;
 
 
