@@ -98,10 +98,15 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	// Check which version of the uart triggered this callback
 	if (huart->Instance == USART2)
 	{
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
 		hal_xxxx_callback_flag = true;
 		hal_xxxx_callback_cnt++;
 
 		hal_xxxx_callback_runtime_us = cycle_counter_get_time_us();
+
+		xSemaphoreGiveFromISR(uart2.tx_sendEnded, &xHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 	}
 }
 

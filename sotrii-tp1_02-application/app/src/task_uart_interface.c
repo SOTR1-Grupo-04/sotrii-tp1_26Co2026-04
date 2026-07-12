@@ -69,6 +69,8 @@ void open_uart(uart_device_t *h_uart_device)
 {
 	h_uart_device->tx_queue = NULL;
 	h_uart_device->rx_queue = NULL;
+	h_uart_device->tx_sendEnded = NULL;
+	h_uart_device->rx_newData = NULL;
 
 	/* Check huart is not NULL. */
 	configASSERT(NULL != h_uart_device->huart);
@@ -76,23 +78,23 @@ void open_uart(uart_device_t *h_uart_device)
 	BaseType_t ret;
 
     /* Task Sender thread at priority 1 */
-    ret = xTaskCreate(tx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
+	    ret = xTaskCreate(tx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
 					  "UART Tx gatekeeper",						/* Text name for the task. This is to facilitate debugging only. */
 					  (2 * configMINIMAL_STACK_SIZE),			/* Stack depth in words. */
 					  (void*) h_uart_device,				/* We are not using the task parameter. */
 					  (tskIDLE_PRIORITY + 1ul),					/* This task will run at priority 1. */
-					  NULL);									/* We are using a variable as task handle. */
+					  &h_uart_device->tx_gatekeeper);			/* We are using a variable as task handle. */
 
 	/* Check the thread was created successfully. */
     configASSERT(pdPASS == ret);
 
 	/* Task Sender thread at priority 1 */
-    ret = xTaskCreate(rx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
+	    ret = xTaskCreate(rx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
 					  "UART Tx gatekeeper",						/* Text name for the task. This is to facilitate debugging only. */
 					  (2 * configMINIMAL_STACK_SIZE),			/* Stack depth in words. */
 					  (void*) h_uart_device,				/* We are not using the task parameter. */
 					  (tskIDLE_PRIORITY + 1ul),					/* This task will run at priority 1. */
-					  NULL);									/* We are using a variable as task handle. */
+					  &h_uart_device->rx_gatekeeper);			/* We are using a variable as task handle. */
 
 
     /* Check the thread was created successfully. */
@@ -105,6 +107,10 @@ void open_uart(uart_device_t *h_uart_device)
 	h_uart_device->rx_queue = xQueueCreate(10, sizeof(dynamic_data_spooler));
 	/* Check the queue was created successfully. */
     configASSERT(NULL != h_uart_device->rx_queue);
+
+	h_uart_device->tx_sendEnded = xSemaphoreCreateBinary();
+	/* Check the semaphore was created successfully. */
+	configASSERT(NULL != h_uart_device->tx_sendEnded);
 
 	h_uart_device->rx_newData = xSemaphoreCreateBinary();
 	/* Check the semaphore was created successfully. */
@@ -167,8 +173,9 @@ void tx_uart_gatekeeper(void* uart_device)
 		dynamic_data_spooler message;
 
 		if (xQueueReceive(dev->tx_queue, &message, portMAX_DELAY) == pdPASS) {
-			//write uart
-			HAL_UART_Transmit_IT(dev->huart, message.buffer, message.size);
+			if (HAL_UART_Transmit_IT(dev->huart, message.buffer, message.size) == HAL_OK) {
+				xSemaphoreTake(dev->tx_sendEnded, portMAX_DELAY);
+			}
 			vPortFree(message.buffer);
 		}
 	}

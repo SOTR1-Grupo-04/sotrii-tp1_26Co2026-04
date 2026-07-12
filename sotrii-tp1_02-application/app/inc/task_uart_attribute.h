@@ -41,6 +41,11 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "task.h"
+#include "semphr.h"
+#include <stddef.h>
 
 /********************** macros ***********************************************/
 
@@ -60,6 +65,7 @@ typedef struct
     TaskHandle_t tx_gatekeeper;
     TaskHandle_t rx_gatekeeper;
 
+    SemaphoreHandle_t tx_sendEnded;
     SemaphoreHandle_t rx_newData;
 } uart_device_t;
 
