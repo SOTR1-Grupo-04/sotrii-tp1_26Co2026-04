@@ -119,10 +119,37 @@ void open_uart(uart_device_t *h_uart_device)
 	configASSERT(NULL != h_uart_device->rx_newData);
 }
 
-void release_uart(UART_HandleTypeDef *h_uart_device)
+void release_uart(uart_device_t *h_uart_device)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	if (h_uart_device == NULL) {
+		return;
+	}
+
+	if (h_uart_device->tx_gatekeeper != NULL) {
+		vTaskDelete(h_uart_device->tx_gatekeeper);
+	}
+
+	if (h_uart_device->rx_gatekeeper != NULL) {
+		vTaskDelete(h_uart_device->rx_gatekeeper);
+	}
+
+	if (h_uart_device->tx_queue != NULL) {
+		vQueueDelete(h_uart_device->tx_queue);
+	}
+
+	if (h_uart_device->rx_queue != NULL) {
+		vQueueDelete(h_uart_device->rx_queue);
+	}
+
+	if (h_uart_device->tx_sendEnded != NULL) {
+		vSemaphoreDelete(h_uart_device->tx_sendEnded);
+	}
+
+	if (h_uart_device->rx_newData != NULL) {
+		vSemaphoreDelete(h_uart_device->rx_newData);
+	}
+
+	memset(h_uart_device, 0, sizeof(*h_uart_device));
 }
 
 void write_uart(uart_device_t *h_uart_device, uint8_t* buff, size_t buffSize)
