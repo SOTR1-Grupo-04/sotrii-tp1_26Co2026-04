@@ -41,6 +41,8 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include <stdbool.h>
+
 #include "task_uart_attribute.h"
 
 /********************** macros ***********************************************/
@@ -54,7 +56,7 @@ extern void open_uart(uart_device_t *h_uart_device);
 extern void release_uart(UART_HandleTypeDef *h_uart_device);
 
 extern void write_uart(uart_device_t *h_uart_device, uint8_t* buff, size_t buffSize);
-extern void read_uart(UART_HandleTypeDef *h_uart_device);
+extern bool read_uart(uart_device_t *h_uart_device, dynamic_data_spooler *message);
 
 extern void ioctl_uart(UART_HandleTypeDef *h_uart_device);
 

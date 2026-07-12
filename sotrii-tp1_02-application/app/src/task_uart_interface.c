@@ -36,6 +36,7 @@
 /* Project includes */
 #include "main.h"
 #include "cmsis_os.h"
+#include <string.h>
 
 /* Demo includes */
 #include "logger.h"
@@ -71,6 +72,7 @@ void open_uart(uart_device_t *h_uart_device)
 	h_uart_device->rx_queue = NULL;
 	h_uart_device->tx_sendEnded = NULL;
 	h_uart_device->rx_newData = NULL;
+	h_uart_device->rx_size = 0u;
 
 	/* Check huart is not NULL. */
 	configASSERT(NULL != h_uart_device->huart);
@@ -149,10 +151,16 @@ void write_uart(uart_device_t *h_uart_device, uint8_t* buff, size_t buffSize)
 	
 }
 
-void read_uart(UART_HandleTypeDef *h_uart_device)
+bool read_uart(uart_device_t *h_uart_device, dynamic_data_spooler *message)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	if (h_uart_device == NULL || message == NULL) {
+		return false;
+	}
+
+	if (xQueueReceive(h_uart_device->rx_queue, message, portMAX_DELAY) != pdPASS) {
+		return false;
+	}
+	return true;
 }
 
 void ioctl_uart(UART_HandleTypeDef *h_uart_device)
@@ -187,9 +195,29 @@ void rx_uart_gatekeeper(void* uart_device)
 	if (dev->huart == NULL) {
 		return;
 	}
+
+	dynamic_data_spooler message;
+
 	while (1)
 	{
-		/* code */
+		configASSERT(HAL_OK == HAL_UARTEx_ReceiveToIdle_IT(dev->huart,
+													   		dev->rx_it_buffer,
+													   		UART_RX_IT_BUFFER_SIZE));
+
+		xSemaphoreTake(dev->rx_newData, portMAX_DELAY);
+
+		message.size = dev->rx_size;
+		message.buffer = pvPortMalloc(message.size);
+
+		configASSERT(message.buffer != NULL);
+
+		memcpy(message.buffer, dev->rx_it_buffer, message.size);
+
+		if (xQueueSend(dev->rx_queue, &message, pdMS_TO_TICKS(1000u)) != pdPASS) {
+			vPortFree(message.buffer);
+		}
+
+		dev->rx_size = 0u;		
 	}	
 }
 
