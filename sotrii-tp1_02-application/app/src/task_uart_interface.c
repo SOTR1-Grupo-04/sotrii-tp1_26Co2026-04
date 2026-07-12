@@ -56,6 +56,8 @@
 /********************** internal data declaration ****************************/
 
 /********************** internal functions declaration ***********************/
+void tx_uart_gatekeeper(void* huartInstance);
+void rx_uart_gatekeeper(void* huartInstance);
 
 /********************** internal data definition *****************************/
 
@@ -63,10 +65,50 @@
 
 /********************** external functions definition ************************/
 /* Interface functions */
-void open_uart(UART_HandleTypeDef *h_uart_device)
+void open_uart(uart_device_t *h_uart_device)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	h_uart_device->tx_queue = NULL;
+	h_uart_device->rx_queue = NULL;
+
+	/* Check huart is not NULL. */
+	configASSERT(NULL != h_uart_device->huart);
+
+	BaseType_t ret;
+
+    /* Task Sender thread at priority 1 */
+    ret = xTaskCreate(tx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
+					  "UART Tx gatekeeper",						/* Text name for the task. This is to facilitate debugging only. */
+					  (2 * configMINIMAL_STACK_SIZE),			/* Stack depth in words. */
+					  (void*) h_uart_device->huart,				/* We are not using the task parameter. */
+					  (tskIDLE_PRIORITY + 1ul),					/* This task will run at priority 1. */
+					  NULL);									/* We are using a variable as task handle. */
+
+	/* Check the thread was created successfully. */
+    configASSERT(pdPASS == ret);
+
+	/* Task Sender thread at priority 1 */
+    ret = xTaskCreate(rx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
+					  "UART Tx gatekeeper",						/* Text name for the task. This is to facilitate debugging only. */
+					  (2 * configMINIMAL_STACK_SIZE),			/* Stack depth in words. */
+					  (void*) h_uart_device->huart,				/* We are not using the task parameter. */
+					  (tskIDLE_PRIORITY + 1ul),					/* This task will run at priority 1. */
+					  NULL);									/* We are using a variable as task handle. */
+
+
+    /* Check the thread was created successfully. */
+    configASSERT(pdPASS == ret);
+
+	h_uart_device->tx_queue = xQueueCreate(10, sizeof(dynamic_data_spooler));
+	/* Check the queue was created successfully. */
+    configASSERT(NULL != h_uart_device->rx_queue);
+
+	h_uart_device->rx_queue = xQueueCreate(10, sizeof(dynamic_data_spooler));
+	/* Check the queue was created successfully. */
+    configASSERT(NULL != h_uart_device->tx_queue);
+
+	h_uart_device->rx_newData = xSemaphoreCreateBinary();
+	/* Check the semaphore was created successfully. */
+	configASSERT(NULL != h_uart_device->rx_newData);
 }
 
 void release_uart(UART_HandleTypeDef *h_uart_device)
@@ -75,10 +117,26 @@ void release_uart(UART_HandleTypeDef *h_uart_device)
 	UNUSED(h_uart_device);
 }
 
-void write_uart(UART_HandleTypeDef *h_uart_device)
+void write_uart(uart_device_t *h_uart_device, uint8_t* buff, size_t buffSize)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	dynamic_data_spooler message;
+	message.buffer = pvPortMalloc(buffSize);
+
+    if (message.buffer == NULL)
+    {
+        return;
+    }
+
+    memcpy(message.buffer, buff, buffSize);
+    message.size = buffSize;
+
+    if (xQueueSend(h_uart_device->tx_queue,
+                   &message,
+                   1000) != pdPASS)
+    {
+        vPortFree(message.buffer);
+    }
+	
 }
 
 void read_uart(UART_HandleTypeDef *h_uart_device)
@@ -91,6 +149,26 @@ void ioctl_uart(UART_HandleTypeDef *h_uart_device)
 {
 	/* Prevent unused argument(s) compilation warning */
 	UNUSED(h_uart_device);
+}
+
+
+void tx_uart_gatekeeper(void* huartInstance)
+{
+	if (huartInstance == NULL) {
+		return;
+	}
+	UART_HandleTypeDef *huart = huartInstance;
+	
+
+}
+
+void rx_uart_gatekeeper(void* huartInstance)
+{
+	if (huartInstance == NULL) {
+		return;
+	}
+	UART_HandleTypeDef *huart = huartInstance;
+
 }
 
 /********************** end of file ******************************************/

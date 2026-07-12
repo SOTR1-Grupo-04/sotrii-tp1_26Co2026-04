@@ -143,8 +143,9 @@ void app_init(void)
      * one task in this state at the moment), but the currently run task ID
      * is stored in variable pxCurrentTCB */
 
+	uart_device_t uart2 = {.huart = &huart2};
     /* UART Device Diver Init */
-    open_uart(&huart2);
+    open_uart(&uart2);
 
     /* Application Interrupts Init */
 	app_it_init();
