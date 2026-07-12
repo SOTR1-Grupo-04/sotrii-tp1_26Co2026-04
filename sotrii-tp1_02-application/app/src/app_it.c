@@ -110,4 +110,18 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
+void HAL_UARTEx_RxEventCallback(UART_HandleTypeDef *huart, uint16_t Size)
+{
+	if (huart->Instance == USART2)
+	{
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+		uart2.rx_size = Size;
+
+		xSemaphoreGiveFromISR(uart2.rx_newData, &xHigherPriorityTaskWoken);
+		portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	}
+}
+
+
 /********************** end of file ******************************************/
