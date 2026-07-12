@@ -55,6 +55,8 @@ osThreadId defaultTaskHandle;
 /* USER CODE BEGIN PV */
 volatile unsigned long ulHighFrequencyTimerTicks;
 
+uart_device_t uart2;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -111,6 +113,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
+
+  uart2.huart = &huart2;
   /* Start timer */
   HAL_TIM_Base_Start_IT(&htim2);
 

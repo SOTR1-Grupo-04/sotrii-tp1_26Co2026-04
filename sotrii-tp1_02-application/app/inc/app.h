@@ -41,6 +41,7 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include "task_uart_attribute.h"
 
 /********************** macros ***********************************************/
 #define TASK_QTY 3ul
@@ -61,7 +62,9 @@ extern uint32_t g_app_stack_overflow_cnt;
 /* Declare a variable of type TaskHandle_t. This is used to reference threads. */
 extern TaskHandle_t h_task_a;
 extern TaskHandle_t h_task_b;
-extern TaskHandle_t h_task_uart2_tx;
+// extern TaskHandle_t h_task_sender;
+// extern TaskHandle_t h_task_receiver;
+extern uart_device_t uart2;
 
 /********************** external functions declaration ***********************/
 extern void app_init(void);

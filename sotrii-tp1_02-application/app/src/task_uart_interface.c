@@ -100,11 +100,11 @@ void open_uart(uart_device_t *h_uart_device)
 
 	h_uart_device->tx_queue = xQueueCreate(10, sizeof(dynamic_data_spooler));
 	/* Check the queue was created successfully. */
-    configASSERT(NULL != h_uart_device->rx_queue);
+    configASSERT(NULL != h_uart_device->tx_queue);
 
 	h_uart_device->rx_queue = xQueueCreate(10, sizeof(dynamic_data_spooler));
 	/* Check the queue was created successfully. */
-    configASSERT(NULL != h_uart_device->tx_queue);
+    configASSERT(NULL != h_uart_device->rx_queue);
 
 	h_uart_device->rx_newData = xSemaphoreCreateBinary();
 	/* Check the semaphore was created successfully. */
