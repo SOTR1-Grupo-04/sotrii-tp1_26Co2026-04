@@ -56,8 +56,8 @@
 /********************** internal data declaration ****************************/
 
 /********************** internal functions declaration ***********************/
-void tx_uart_gatekeeper(void* huartInstance);
-void rx_uart_gatekeeper(void* huartInstance);
+void tx_uart_gatekeeper(void* uart_device_t);
+void rx_uart_gatekeeper(void* uart_device_t);
 
 /********************** internal data definition *****************************/
 
@@ -79,7 +79,7 @@ void open_uart(uart_device_t *h_uart_device)
     ret = xTaskCreate(tx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
 					  "UART Tx gatekeeper",						/* Text name for the task. This is to facilitate debugging only. */
 					  (2 * configMINIMAL_STACK_SIZE),			/* Stack depth in words. */
-					  (void*) h_uart_device->huart,				/* We are not using the task parameter. */
+					  (void*) h_uart_device,				/* We are not using the task parameter. */
 					  (tskIDLE_PRIORITY + 1ul),					/* This task will run at priority 1. */
 					  NULL);									/* We are using a variable as task handle. */
 
@@ -90,7 +90,7 @@ void open_uart(uart_device_t *h_uart_device)
     ret = xTaskCreate(rx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
 					  "UART Tx gatekeeper",						/* Text name for the task. This is to facilitate debugging only. */
 					  (2 * configMINIMAL_STACK_SIZE),			/* Stack depth in words. */
-					  (void*) h_uart_device->huart,				/* We are not using the task parameter. */
+					  (void*) h_uart_device,				/* We are not using the task parameter. */
 					  (tskIDLE_PRIORITY + 1ul),					/* This task will run at priority 1. */
 					  NULL);									/* We are using a variable as task handle. */
 
@@ -152,23 +152,28 @@ void ioctl_uart(UART_HandleTypeDef *h_uart_device)
 }
 
 
-void tx_uart_gatekeeper(void* huartInstance)
+void tx_uart_gatekeeper(void* uart_device)
 {
-	if (huartInstance == NULL) {
+	uart_device_t *dev = uart_device;
+	if (dev->huart == NULL) {
 		return;
 	}
-	UART_HandleTypeDef *huart = huartInstance;
 	
+	dynamic_data_spooler message;
 
+	if (xQueueReceive(dev->tx_queue, &message, portMAX_DELAY) == pdPASS) {
+		//write uart
+		HAL_UART_Transmit_IT(dev->huart, message.buffer, message.size);
+		vPortFree(message.buffer);
+	}
 }
 
-void rx_uart_gatekeeper(void* huartInstance)
+void rx_uart_gatekeeper(void* uart_device)
 {
-	if (huartInstance == NULL) {
+	uart_device_t *dev = uart_device;
+	if (dev->huart == NULL) {
 		return;
 	}
-	UART_HandleTypeDef *huart = huartInstance;
-
 }
 
 /********************** end of file ******************************************/
