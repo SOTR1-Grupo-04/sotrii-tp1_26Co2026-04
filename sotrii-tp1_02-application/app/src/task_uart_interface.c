@@ -119,6 +119,10 @@ void release_uart(UART_HandleTypeDef *h_uart_device)
 
 void write_uart(uart_device_t *h_uart_device, uint8_t* buff, size_t buffSize)
 {
+	if (h_uart_device == NULL || buff == NULL || buffSize == 0) {
+		return;
+	}
+
 	dynamic_data_spooler message;
 	message.buffer = pvPortMalloc(buffSize);
 
