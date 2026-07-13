@@ -52,6 +52,8 @@
 #define TASK_SENDER_DEL_ZERO	(pdMS_TO_TICKS(0ul))
 #define TASK_SENDER_DEL_MAX		(pdMS_TO_TICKS(250ul))
 
+static uint8_t saludo[] = {'h', 'o', 'l', 'a', '\n' };
+
 /********************** internal data declaration ****************************/
 
 /********************** internal functions declaration ***********************/
@@ -82,6 +84,7 @@ void task_sender(void *parameters)
     	/* Print out: Wait 250mS */
 		LOGGER_INFO(p_task_sender_wait_250mS);
 		vTaskDelay(TASK_SENDER_DEL_MAX);
+		write_uart(&uart2, saludo, sizeof(saludo));
 	}
 }
 
