@@ -66,6 +66,8 @@ uint32_t g_task_receiver_cnt;
 /* Task thread */
 void task_receiver(void *parameters)
 {
+	dynamic_data_spooler message;
+
 	/*  Declare & Initialize Task Function variables */
 	g_task_receiver_cnt = G_TASK_RECEIVER_CNT_INI;
 
@@ -80,8 +82,12 @@ void task_receiver(void *parameters)
 		g_task_receiver_cnt++;
 
     	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_receiver_wait_250mS);
+		
 		vTaskDelay(TASK_RECEIVER_DEL_MAX);
+		if (read_uart(&uart2, &message)) {
+			LOGGER_INFO("%.*s", (int)message.size, (char *)message.buffer);
+			vPortFree(message.buffer);
+		}
 	}
 }
 
