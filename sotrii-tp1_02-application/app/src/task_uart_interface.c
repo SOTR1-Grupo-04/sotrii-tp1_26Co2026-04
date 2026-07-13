@@ -190,13 +190,6 @@ bool read_uart(uart_device_t *h_uart_device, dynamic_data_spooler *message)
 	return true;
 }
 
-void ioctl_uart(UART_HandleTypeDef *h_uart_device)
-{
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
-}
-
-
 void tx_uart_gatekeeper(void* uart_device)
 {
 	uart_device_t *dev = uart_device;
