@@ -90,3 +90,15 @@ El proyecto analiza la transición de programación monoteísta o de bucles fini
 2. **Desacoplamiento Hardware/Software:** Gracias al uso de `app_it.c` y las estructuras de interfaz en `task_uart_interface.c`, los detalles físicos de los periféricos STM32 quedan aislados de la lógica de negocio de la aplicación.
 3. **Observabilidad y Diagnóstico:** La combinación del módulo de logging, los hooks de FreeRTOS y el perfilado de tiempo en microsegundos (a través del Data Watchpoint and Trace - DWT en Cortex-M) proveen un framework robusto para medir tiempos de ejecución de ISRs y tareas, monitorear la salud de la memoria y verificar el comportamiento del sistema bajo condiciones operativas reales.
 <!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
+
+---
+
+## 4. Resultados de Medición de WCET
+
+En las pruebas realizadas sobre las funciones de interfaz del driver UART se obtuvo el siguiente resultado:
+
+| Métrica | Ubicación | Resultado observado | Observación |
+| :--- | :--- | :--- | :--- |
+| **`tx_runtime_us`** | `task_receiver.c` | **16** | Valor observado al retornar de `write_uart()` con datos disponibles para consumo. |
+| **`rx_runtime_us`** | `task_receiver.c` | **99** | Valor observado al retornar de `read_uart()` con datos disponibles para consumo. |
+

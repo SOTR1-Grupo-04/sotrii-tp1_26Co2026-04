@@ -63,6 +63,7 @@ const char *p_task_sender_wait_250mS		= "   ==> Task SENDER - Wait:   250mS";
 
 /********************** external data declaration ****************************/
 uint32_t g_task_sender_cnt;
+static uint32_t tx_runtime_us = 0;
 
 /********************** external functions definition ************************/
 /* Task thread */
@@ -81,10 +82,11 @@ void task_sender(void *parameters)
 		/* Update Task Counter */
 		g_task_sender_cnt++;
 
-    	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_sender_wait_250mS);
 		vTaskDelay(TASK_SENDER_DEL_MAX);
+
+		cycle_counter_reset();
 		write_uart(&uart2, saludo, sizeof(saludo));
+		tx_runtime_us = cycle_counter_get_time_us();
 	}
 }
 

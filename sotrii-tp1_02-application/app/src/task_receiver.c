@@ -61,6 +61,7 @@ const char *p_task_receiver_wait_250mS		= "   ==> Task RECEIVER - Wait:   250mS"
 
 /********************** external data declaration ****************************/
 uint32_t g_task_receiver_cnt;
+static uint32_t rx_runtime_us = 0;
 
 /********************** external functions definition ************************/
 /* Task thread */
@@ -81,12 +82,12 @@ void task_receiver(void *parameters)
 		/* Update Task Counter */
 		g_task_receiver_cnt++;
 
-    	/* Print out: Wait 250mS */
-		
-		vTaskDelay(TASK_RECEIVER_DEL_MAX);
+		cycle_counter_reset();
 		if (read_uart(&uart2, &message)) {
 			LOGGER_INFO("%.*s", (int)message.size, (char *)message.buffer);
 			vPortFree(message.buffer);
+			rx_runtime_us = cycle_counter_get_time_us();
+			LOGGER_INFO("rx_runtime_us %ld", rx_runtime_us);
 		}
 	}
 }
