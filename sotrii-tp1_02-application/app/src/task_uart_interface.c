@@ -184,7 +184,7 @@ bool read_uart(uart_device_t *h_uart_device, dynamic_data_spooler *message)
 		return false;
 	}
 
-	if (xQueueReceive(h_uart_device->rx_queue, message, portMAX_DELAY) != pdPASS) {
+	if (xQueueReceive(h_uart_device->rx_queue, message, 0) != pdPASS) {
 		return false;
 	}
 	return true;
