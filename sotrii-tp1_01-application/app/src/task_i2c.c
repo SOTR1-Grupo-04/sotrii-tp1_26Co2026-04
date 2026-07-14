@@ -63,7 +63,6 @@ void task_i2c_tx(void *parameters);
 void task_i2c_rx(void *parameters);
 
 /********************** internal data definition *****************************/
-const char *p_task_i2c_tx_wait_250mS	= "   ==> Task I2C TX - Wait:   250mS";
 const char *p_task_i2c_rx_wait_250mS	= "   ==> Task I2C RX - Wait:   250mS";
 
 /********************** external data declaration ****************************/
@@ -108,10 +107,6 @@ void task_i2c_tx(void *parameters)
 		HAL_I2C_Master_Transmit(p_task_i2c_tx_dta->device_id, (task_i2c_tx_dta.address << 1), &task_i2c_tx_dta.data, sizeof(task_i2c_tx_dta.data), HAL_MAX_DELAY);
 
 		g_task_xxxx_tx_runtime_us = cycle_counter_get_time_us();
-
-    	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_i2c_tx_wait_250mS);
-		vTaskDelay(TASK_XXXX_DEL_MAX);
 	}
 }
 
