@@ -43,7 +43,7 @@ extern "C" {
 /********************** inclusions *******************************************/
 
 /********************** macros ***********************************************/
-#define TASK_QTY 3ul
+#define TASK_QTY 4ul
 
 /********************** typedef **********************************************/
 
@@ -61,6 +61,7 @@ extern uint32_t g_app_stack_overflow_cnt;
 /* Declare a variable of type TaskHandle_t. This is used to reference threads. */
 extern TaskHandle_t h_task_sender;
 extern TaskHandle_t h_task_receiver;
+extern TaskHandle_t h_task_monitor;
 
 /********************** external functions declaration ***********************/
 extern void app_init(void);
