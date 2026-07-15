@@ -46,6 +46,7 @@
 #include "app_it.h"
 #include "task_sender.h"
 #include "task_receiver.h"
+#include "task_monitor.h"
 #include "task_i2c.h"
 #include "task_i2c_interface.h"
 
@@ -77,6 +78,7 @@ uint32_t g_app_stack_overflow_cnt;
 /* Declare a variable of type TaskHandle_t. This is used to reference threads. */
 TaskHandle_t h_task_sender;
 TaskHandle_t h_task_receiver;
+TaskHandle_t h_task_monitor;
 
 /********************** external functions definition ************************/
 void app_init(void)
@@ -118,6 +120,17 @@ void app_init(void)
 					  NULL,								/* We are not using the task parameter. */
 					  (tskIDLE_PRIORITY + 1ul),			/* This task will run at priority 1. */
 					  &h_task_sender);					/* We are using a variable as task handle. */
+
+    /* Check the thread was created successfully. */
+    configASSERT(pdPASS == ret);
+
+    /* Task Monitor thread at priority 1 */
+    ret = xTaskCreate(task_monitor,                     /* Pointer to the function thats implement the task. */
+                      "Task Monitor",                  /* Text name for the task. This is to facilitate debugging only. */
+                      (2 * configMINIMAL_STACK_SIZE),  /* Stack depth in words. */
+                      NULL,                            /* We are not using the task parameter. */
+                      (tskIDLE_PRIORITY + 1ul),        /* This task will run at priority 1. */
+                      &h_task_monitor);                /* We are using a variable as task handle. */
 
     /* Check the thread was created successfully. */
     configASSERT(pdPASS == ret);

@@ -32,69 +32,45 @@
  * @author : Juan Manuel Cruz <jcruz@fi.uba.ar> <jcruz@frba.utn.edu.ar>
  */
 
+#ifndef APP_H_
+#define APP_H_
+
+/********************** CPP guard ********************************************/
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /********************** inclusions *******************************************/
-/* Project includes */
-#include "main.h"
-#include "cmsis_os.h"
 
-/* Demo includes */
-#include "logger.h"
-#include "dwt.h"
+/********************** macros ***********************************************/
+#define TASK_QTY 4ul
 
-/* Application & Tasks includes */
-#include "board.h"
-#include "app.h"
-#include "task_i2c_interface.h"
-
-/********************** macros and definitions *******************************/
-#define G_TASK_SENDER_CNT_INI	0ul
-
-#define TASK_SENDER_DEL_ZERO	(pdMS_TO_TICKS(0ul))
-#define TASK_SENDER_DEL_MAX		(pdMS_TO_TICKS(250ul))
-
-/********************** internal data declaration ****************************/
-
-/********************** internal functions declaration ***********************/
-
-/********************** internal data definition *****************************/
-const char *p_task_sender_wait_250mS		= "   ==> Task SENDER - Wait:   250mS";
+/********************** typedef **********************************************/
 
 /********************** external data declaration ****************************/
-uint32_t g_task_sender_cnt;
+extern volatile uint32_t g_app_tick_cnt;
+extern uint32_t g_task_idle_cnt;
+extern uint32_t g_app_stack_overflow_cnt;
 
-/********************** external functions definition ************************/
-/* Task thread */
-void task_sender(void *parameters)
-{
-	/*  Declare & Initialize Task Function variables */
-	g_task_sender_cnt = G_TASK_SENDER_CNT_INI;
+/* Declare a variable of type QueueHandle_t. This is used to reference queues*/
 
-	/* Serial LCD I2C Module–PCF8574
-	 * https://alselectro.wordpress.com/2016/05/12/serial-lcd-i2c-module-pcf8574/
-	 * https://www.ti.com/product/PCF8574
- 	 * dev_address = (address base | jumper less address)
- 	 */
-	uint16_t dev_address = 0x27;
-	uint8_t dev_data = 0x55;
+/* Declare a variable of type SemaphoreHandle_t (binary or counting) or mutex.
+ * This is used to reference the semaphore that is used to synchronize a thread
+ * with other thread or to ensure mutual exclusive access to...*/
 
-	/* Print out: Task Initialized */
-	LOGGER_INFO(" ");
-	LOGGER_INFO("  %s is running - Tick [mS] = %lu", pcTaskGetName(NULL), xTaskGetTickCount());
+/* Declare a variable of type TaskHandle_t. This is used to reference threads. */
+extern TaskHandle_t h_task_sender;
+extern TaskHandle_t h_task_receiver;
+extern TaskHandle_t h_task_monitor;
 
-	/* As per most tasks, this task is implemented in an infinite loop. */
-	for (;;)
-	{
-		/* Update Task Counter */
-		g_task_sender_cnt++;
+/********************** external functions declaration ***********************/
+extern void app_init(void);
 
-		/* I2C Device Diver Write */
-		dev_data = ~dev_data;
-		write_i2c(&hi2c1, dev_address, dev_data);
-
-    	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_sender_wait_250mS);
-		vTaskDelay(TASK_SENDER_DEL_MAX);
-	}
+/********************** End of CPP guard *************************************/
+#ifdef __cplusplus
 }
+#endif
+
+#endif /* APP_H_ */
 
 /********************** end of file ******************************************/

@@ -63,12 +63,12 @@ void task_i2c_tx(void *parameters);
 void task_i2c_rx(void *parameters);
 
 /********************** internal data definition *****************************/
-const char *p_task_i2c_tx_wait_250mS	= "   ==> Task I2C TX - Wait:   250mS";
 const char *p_task_i2c_rx_wait_250mS	= "   ==> Task I2C RX - Wait:   250mS";
 
 /********************** external data declaration ****************************/
 uint32_t g_task_xxxx_tx_cnt;
 uint32_t g_task_xxxx_tx_runtime_us;
+uint32_t g_task_xxxx_tx_wcet_us;
 
 uint32_t g_task_xxxx_rx_cnt;
 uint32_t g_task_xxxx_rx_runtime_us;
@@ -80,14 +80,15 @@ void task_i2c_tx(void *parameters)
 	/*  Declare & Initialize Task Function variables */
 	g_task_xxxx_tx_cnt = G_TASK_XXXX_CNT_INI;
 	g_task_xxxx_tx_runtime_us = G_TASK_XXXX_RUNTIME_US_INI;
+	g_task_xxxx_tx_wcet_us = G_TASK_XXXX_RUNTIME_US_INI;
 
 	task_i2c_dta_t *p_task_i2c_tx_dta = (task_i2c_dta_t *)parameters;
 
 	/* Serial LCD I2C Module–PCF8574
 	 * https://alselectro.wordpress.com/2016/05/12/serial-lcd-i2c-module-pcf8574/
 	 * https://www.ti.com/product/PCF8574
- 	 * i2c1_tx_address_rd_wr = ((address base | jumper less address) << 1) | /write
- 	 */
+	 * i2c1_tx_address_rd_wr = ((address base | jumper less address) << 1) | /write
+	 */
 
 	/* Print out: Task Initialized */
 	LOGGER_INFO(" ");
@@ -109,9 +110,10 @@ void task_i2c_tx(void *parameters)
 
 		g_task_xxxx_tx_runtime_us = cycle_counter_get_time_us();
 
-    	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_i2c_tx_wait_250mS);
-		vTaskDelay(TASK_XXXX_DEL_MAX);
+		if (g_task_xxxx_tx_runtime_us > g_task_xxxx_tx_wcet_us)
+		{
+			g_task_xxxx_tx_wcet_us = g_task_xxxx_tx_runtime_us;
+		}
 	}
 }
 
