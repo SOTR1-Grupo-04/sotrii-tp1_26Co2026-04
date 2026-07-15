@@ -1,3 +1,5 @@
+# Respuestas Gemini
+
 El código implementa una arquitectura de **Sistema Activado por Eventos (ETS)** utilizando **FreeRTOS** sobre un microcontrolador de la familia STM32 (evidenciado por el uso del HAL de ST). El diseño principal gira en torno a desacoplar la lógica de la aplicación de las operaciones de hardware, utilizando una capa de abstracción basada en tareas y colas para manejar la comunicación por bus I2C de forma asíncrona y segura entre hilos (*thread-safe*).
 
 ---
@@ -73,3 +75,38 @@ El flujo completo de una operación de escritura muestra la potencia de esta arq
 $$\text{task\_sender} \xrightarrow{\quad\text{write\_i2c()}\quad} \text{Queue (Tx)} \xrightarrow{\quad\text{task\_i2c\_tx}\quad} \text{HAL\_I2C\_Master\_Transmit()} \longrightarrow \text{Hardware I2C (PCF8574 LCD)}$$
 
 Este diseño garantiza que las operaciones de hardware lentas o susceptibles a bloqueo no detengan el flujo del resto de la aplicación, delegando el acceso físico al periférico a un único punto centralizado y protegido frente a condiciones de carrera.
+
+---
+
+# Medición WCET
+
+## Observaciones de la Implementación y Prueba
+
+Durante la implementación del paso correspondiente al driver I2C sobre FreeRTOS, se observó lo siguiente:
+
+* Se utilizó el periférico **I2C1** del STM32F446RE, configurado sobre los pines `PB8` (`SCL`) y `PB9` (`SDA`).
+* La prueba funcional del driver se realizó con un **LCD 16x2 con backpack I2C PCF8574** en la dirección `0x27`.
+* La tarea `task_sender` dejó de enviar el patrón alternado `0x55/0xAA` y pasó a ejecutar una secuencia de inicialización del LCD en modo de 4 bits.
+* Una vez inicializado el display, `task_sender` escribe el texto `"hola mundo"` carácter por carácter usando únicamente la función de interfaz `write_i2c()`.
+* Para que la secuencia del LCD funcionara correctamente, fue necesario eliminar el retardo de `250 ms` dentro de `task_i2c_tx()`, ya que ese retardo entre bytes rompía la inicialización y la escritura del display.
+* Se agregó una tarea periódica `task_monitor`, cuya única función es informar por logger el tiempo de ejecución medido en la transmisión I2C y el peor caso observado.
+
+## Observaciones sobre la medición de WCET
+
+Para medir el WCET observado se utilizó el contador de ciclos **DWT**. La medición se realiza dentro de `task_i2c_tx()` reseteando el contador antes de llamar a `HAL_I2C_Master_Transmit()` y leyendo el tiempo en microsegundos al finalizar la transmisión.
+
+Las variables usadas para la observación son:
+
+* `g_task_xxxx_tx_runtime_us`: tiempo de ejecución de la última transmisión I2C.
+* `g_task_xxxx_tx_wcet_us`: máximo tiempo de ejecución observado hasta el momento.
+
+Durante la depuración se observó que:
+
+* el valor de `g_task_xxxx_tx_runtime_us` cambia en cada transmisión según la operación efectivamente ejecutada sobre el bus I2C,
+* el valor de `g_task_xxxx_tx_wcet_us` solo se actualiza cuando aparece una transmisión que supera el máximo previamente registrado,
+* el WCET observado corresponde al tiempo de ejecución del backend de transmisión (`task_i2c_tx`) y no al tiempo de retorno de la función de interfaz `write_i2c()`,
+* si se introduce un retardo artificial dentro de `task_i2c_tx()`, la medición deja de representar correctamente el costo real de la transmisión I2C,
+* para visualizar la evolución de las mediciones sin saturar el sistema, se agregó una tarea periódica `task_monitor` que informa `runtime` y `WCET` cada `2000 ms`.
+* la máxima medición del `WCET` que se obtuvo fue de 247246 microsegundos, como se puede observar en la siguiente línea de logueo:
+
+```[info]   I2C TX runtime [uS] = 197 - WCET [uS] = 247246```
