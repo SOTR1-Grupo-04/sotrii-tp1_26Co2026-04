@@ -48,59 +48,56 @@
 #include "task_adc_attribute.h"
 
 /********************** macros and definitions *******************************/
-#define G_TASK_XXXX_CNT_INI			0ul
-#define G_TASK_XXXX_RUNTIME_US_INI	0ul
-
-#define TASK_XXXX_DEL_ZERO	(pdMS_TO_TICKS(0ul))
-#define TASK_XXXX_DEL_MAX	(pdMS_TO_TICKS(250ul))
-
-/********************** internal data declaration ****************************/
+#define G_TASK_ADC_RX_CNT_INI			0ul
+#define G_TASK_ADC_RX_RUNTIME_US_INI	0ul
 
 /********************** internal data declaration ****************************/
 
 /********************** internal functions declaration ***********************/
-void task_adc_rx(void *parameters);
 
 /********************** internal data definition *****************************/
-const char *p_task_adc_rx_wait_250mS	= "   ==> Task ADC RX - Wait:   250mS";
 
 /********************** external data declaration ****************************/
-uint32_t g_task_xxxx_tx_cnt;
-uint32_t g_task_xxxx_tx_runtime_us;
-
-uint32_t g_task_xxxx_rx_cnt;
-uint32_t g_task_xxxx_rx_runtime_us;
+uint32_t g_task_adc_cnt;
+uint32_t g_task_adc_runtime_us;
 
 /********************** external functions definition ************************/
-/* Task ADC RX thread */
-void task_adc_rx(void *parameters)
+/**
+ * Task que funciona como Gatekeeper del recurso adc_device.adc_value
+ */
+void task_adc(void *parameters)
 {
-	/* Prevent unused argument(s) compilation warning */
 	UNUSED(parameters);
 
-	/*  Declare & Initialize Task Function variables */
-	g_task_xxxx_rx_cnt = G_TASK_XXXX_CNT_INI;
-	g_task_xxxx_rx_runtime_us = G_TASK_XXXX_RUNTIME_US_INI;
+	g_task_adc_cnt = G_TASK_ADC_RX_CNT_INI;
+	g_task_adc_runtime_us = G_TASK_ADC_RX_RUNTIME_US_INI;
 
-	/* Print out: Task Initialized */
 	LOGGER_INFO(" ");
-	LOGGER_INFO("%s is running - Tick [mS] = %3d", pcTaskGetName(NULL), (int)xTaskGetTickCount());
+	LOGGER_INFO("  %s is running - Tick [mS] = %lu", pcTaskGetName(NULL), xTaskGetTickCount());
 
-	/* As per most tasks, this task is implemented in an infinite loop. */
 	for (;;)
 	{
-		/* Update Task Counter */
-		g_task_xxxx_rx_cnt++;
+		// Se bloquea esperando al semaforo que sera dado desde la interrupcion cuando el DMA termina la conversion del ADC
+		if (xSemaphoreTake(adc_device.h_semaphore, portMAX_DELAY) == pdTRUE)
+		{
+			g_task_adc_cnt++;
+			cycle_counter_reset();
 
-		cycle_counter_reset();
+			// Vaciar el input spooler: puede haber varios valores acumulados. Lee desde tail
+			adc_spooler_t *input_spooler = &adc_device.input_spooler;
+			while (input_spooler->tail != input_spooler->head)
+			{
+				uint32_t value = input_spooler->buffer[input_spooler->tail];
+				input_spooler->tail = (input_spooler->tail + 1) % ADC_SPOOLER_SIZE; // Tail solo se escribe aca, no hace falta exclusion mutua
 
-		HAL_GPIO_TogglePin(LED_A_PORT, LED_A_PIN);
+				xQueueSend(adc_device.h_queue, &value, portMAX_DELAY);
+				LOGGER_INFO("   ==> Task ADC - Value: %lu", value);
+			}
 
-		g_task_xxxx_rx_runtime_us = cycle_counter_get_time_us();
-
-    	/* Print out: Wait 250mS */
-		LOGGER_INFO(p_task_adc_rx_wait_250mS);
-		vTaskDelay(TASK_XXXX_DEL_MAX);
+			// Se relanza la conversion DMA
+			HAL_ADC_Start_DMA(adc_device.h_adc, &adc_device.adc_value, 1);
+			g_task_adc_runtime_us = cycle_counter_get_time_us();
+		}
 	}
 }
 

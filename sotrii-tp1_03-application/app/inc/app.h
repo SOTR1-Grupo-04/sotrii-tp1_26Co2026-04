@@ -43,7 +43,7 @@ extern "C" {
 /********************** inclusions *******************************************/
 
 /********************** macros ***********************************************/
-#define TASK_QTY 3ul
+#define TASK_QTY 2ul
 
 /********************** typedef **********************************************/
 
@@ -52,16 +52,8 @@ extern volatile uint32_t g_app_tick_cnt;
 extern uint32_t g_task_idle_cnt;
 extern uint32_t g_app_stack_overflow_cnt;
 
-/* Declare a variable of type QueueHandle_t. This is used to reference queues*/
-
-/* Declare a variable of type SemaphoreHandle_t (binary or counting) or mutex.
- * This is used to reference the semaphore that is used to synchronize a thread
- * with other thread or to ensure mutual exclusive access to...*/
-
 /* Declare a variable of type TaskHandle_t. This is used to reference threads. */
-extern TaskHandle_t h_task_a;
-extern TaskHandle_t h_task_b;
-extern TaskHandle_t h_task_uart2_tx;
+extern TaskHandle_t h_task_receiver;
 
 /********************** external functions declaration ***********************/
 extern void app_init(void);
