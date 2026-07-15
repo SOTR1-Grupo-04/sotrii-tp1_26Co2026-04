@@ -1,14 +1,13 @@
 # CESE - Sistemas Operativos de Tiempo Real II
-## Trabajo Práctico N°: 1 - Tareas de FreeRTOS
-### 26Co2026-04
+## Trabajo Práctico N°: 1 - Device Driver
+### Cohorte-Grupo: 26Co2026-04
+### Modelo de placa: Nucleo-F446RE
 
 ### Responsable de la entrega:
 
 | N° SIU | Apellidos, Nombres       | Fecha     | Deadline  |
 | :----- | :---------------------   | :------:  | :-------: |
-| e2505  | Botalla, Tomás Enrique   |           |           |
-| e2615  | Restovich, Joaquin       |           |           |
-| e2606  | Lazcano, Luca Mauricio   |           |           |
+| e2606  | Lazcano, Luca Mauricio   | 14/07     | 14/07     |
 
 ## Notas
 
