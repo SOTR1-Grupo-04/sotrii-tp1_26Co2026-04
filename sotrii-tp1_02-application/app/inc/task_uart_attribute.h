@@ -41,15 +41,44 @@ extern "C" {
 #endif
 
 /********************** inclusions *******************************************/
+#include "FreeRTOS.h"
+#include "queue.h"
+#include "task.h"
+#include "semphr.h"
+#include <stddef.h>
 
 /********************** macros ***********************************************/
+#define UART_RX_IT_BUFFER_SIZE 200u
 
 /********************** typedef **********************************************/
 /* Structure of Task */
 
 
 /* Structure of UART Tx */
+typedef struct
+{
+    uint32_t device_id;
+    UART_HandleTypeDef *huart;
 
+    QueueHandle_t tx_queue;
+    QueueHandle_t rx_queue;
+
+    TaskHandle_t tx_gatekeeper;
+    TaskHandle_t rx_gatekeeper;
+
+    SemaphoreHandle_t tx_sendEnded;
+    SemaphoreHandle_t rx_newData;
+
+    uint8_t rx_it_buffer[UART_RX_IT_BUFFER_SIZE];
+    uint16_t rx_size;
+} uart_device_t;
+
+
+typedef struct 
+{
+    uint8_t* buffer;
+    size_t size;
+} dynamic_data_spooler;
 
 /********************** external data declaration ****************************/
 

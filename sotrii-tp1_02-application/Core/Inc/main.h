@@ -31,6 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "task_uart_attribute.h"
 
 /* USER CODE END Includes */
 
@@ -43,7 +44,7 @@ extern UART_HandleTypeDef huart2;
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
+extern uart_device_t uart2;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

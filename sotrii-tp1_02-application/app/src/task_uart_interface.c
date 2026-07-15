@@ -36,6 +36,7 @@
 /* Project includes */
 #include "main.h"
 #include "cmsis_os.h"
+#include <string.h>
 
 /* Demo includes */
 #include "logger.h"
@@ -56,6 +57,8 @@
 /********************** internal data declaration ****************************/
 
 /********************** internal functions declaration ***********************/
+void tx_uart_gatekeeper(void* uart_device_t);
+void rx_uart_gatekeeper(void* uart_device_t);
 
 /********************** internal data definition *****************************/
 
@@ -63,34 +66,179 @@
 
 /********************** external functions definition ************************/
 /* Interface functions */
-void open_uart(UART_HandleTypeDef *h_uart_device)
+void open_uart(uart_device_t *h_uart_device)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	h_uart_device->tx_queue = NULL;
+	h_uart_device->rx_queue = NULL;
+	h_uart_device->tx_sendEnded = NULL;
+	h_uart_device->rx_newData = NULL;
+	h_uart_device->rx_size = 0u;
+
+	/* Check huart is not NULL. */
+	configASSERT(NULL != h_uart_device->huart);
+
+	BaseType_t ret;
+
+    /* Task Sender thread at priority 1 */
+	    ret = xTaskCreate(tx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
+					  "UART Tx gatekeeper",						/* Text name for the task. This is to facilitate debugging only. */
+					  (2 * configMINIMAL_STACK_SIZE),			/* Stack depth in words. */
+					  (void*) h_uart_device,				/* We are not using the task parameter. */
+					  (tskIDLE_PRIORITY + 1ul),					/* This task will run at priority 1. */
+					  &h_uart_device->tx_gatekeeper);			/* We are using a variable as task handle. */
+
+	/* Check the thread was created successfully. */
+    configASSERT(pdPASS == ret);
+
+	/* Task Sender thread at priority 1 */
+	    ret = xTaskCreate(rx_uart_gatekeeper,						/* Pointer to the function thats implement the task. */
+					  "UART Tx gatekeeper",						/* Text name for the task. This is to facilitate debugging only. */
+					  (2 * configMINIMAL_STACK_SIZE),			/* Stack depth in words. */
+					  (void*) h_uart_device,				/* We are not using the task parameter. */
+					  (tskIDLE_PRIORITY + 1ul),					/* This task will run at priority 1. */
+					  &h_uart_device->rx_gatekeeper);			/* We are using a variable as task handle. */
+
+
+    /* Check the thread was created successfully. */
+    configASSERT(pdPASS == ret);
+
+	h_uart_device->tx_queue = xQueueCreate(10, sizeof(dynamic_data_spooler));
+	/* Check the queue was created successfully. */
+    configASSERT(NULL != h_uart_device->tx_queue);
+
+	h_uart_device->rx_queue = xQueueCreate(10, sizeof(dynamic_data_spooler));
+	/* Check the queue was created successfully. */
+    configASSERT(NULL != h_uart_device->rx_queue);
+
+	h_uart_device->tx_sendEnded = xSemaphoreCreateBinary();
+	/* Check the semaphore was created successfully. */
+	configASSERT(NULL != h_uart_device->tx_sendEnded);
+
+	h_uart_device->rx_newData = xSemaphoreCreateBinary();
+	/* Check the semaphore was created successfully. */
+	configASSERT(NULL != h_uart_device->rx_newData);
 }
 
-void release_uart(UART_HandleTypeDef *h_uart_device)
+void release_uart(uart_device_t *h_uart_device)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	if (h_uart_device == NULL) {
+		return;
+	}
+
+	if (h_uart_device->tx_gatekeeper != NULL) {
+		vTaskDelete(h_uart_device->tx_gatekeeper);
+	}
+
+	if (h_uart_device->rx_gatekeeper != NULL) {
+		vTaskDelete(h_uart_device->rx_gatekeeper);
+	}
+
+	if (h_uart_device->tx_queue != NULL) {
+		vQueueDelete(h_uart_device->tx_queue);
+	}
+
+	if (h_uart_device->rx_queue != NULL) {
+		vQueueDelete(h_uart_device->rx_queue);
+	}
+
+	if (h_uart_device->tx_sendEnded != NULL) {
+		vSemaphoreDelete(h_uart_device->tx_sendEnded);
+	}
+
+	if (h_uart_device->rx_newData != NULL) {
+		vSemaphoreDelete(h_uart_device->rx_newData);
+	}
+
+	memset(h_uart_device, 0, sizeof(*h_uart_device));
 }
 
-void write_uart(UART_HandleTypeDef *h_uart_device)
+void write_uart(uart_device_t *h_uart_device, uint8_t* buff, size_t buffSize)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	if (h_uart_device == NULL || buff == NULL || buffSize == 0) {
+		return;
+	}
+
+	dynamic_data_spooler message;
+	message.buffer = pvPortMalloc(buffSize);
+
+    if (message.buffer == NULL)
+    {
+        return;
+    }
+
+    memcpy(message.buffer, buff, buffSize);
+    message.size = buffSize;
+
+    if (xQueueSend(h_uart_device->tx_queue,
+                   &message,
+                   1000) != pdPASS)
+    {
+        vPortFree(message.buffer);
+    }
+	
 }
 
-void read_uart(UART_HandleTypeDef *h_uart_device)
+bool read_uart(uart_device_t *h_uart_device, dynamic_data_spooler *message)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	if (h_uart_device == NULL || message == NULL) {
+		return false;
+	}
+
+	if (xQueueReceive(h_uart_device->rx_queue, message, 0) != pdPASS) {
+		return false;
+	}
+	return true;
 }
 
-void ioctl_uart(UART_HandleTypeDef *h_uart_device)
+void tx_uart_gatekeeper(void* uart_device)
 {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(h_uart_device);
+	uart_device_t *dev = uart_device;
+	if (dev->huart == NULL) {
+		return;
+	}
+	
+	while (1) {
+		dynamic_data_spooler message;
+
+		if (xQueueReceive(dev->tx_queue, &message, portMAX_DELAY) == pdPASS) {
+			if (HAL_UART_Transmit_IT(dev->huart, message.buffer, message.size) == HAL_OK) {
+				xSemaphoreTake(dev->tx_sendEnded, portMAX_DELAY);
+			}
+			vPortFree(message.buffer);
+		}
+	}
+}
+
+void rx_uart_gatekeeper(void* uart_device)
+{
+	uart_device_t *dev = uart_device;
+	if (dev->huart == NULL) {
+		return;
+	}
+
+	dynamic_data_spooler message;
+
+	while (1)
+	{
+		configASSERT(HAL_OK == HAL_UARTEx_ReceiveToIdle_IT(dev->huart,
+													   		dev->rx_it_buffer,
+													   		UART_RX_IT_BUFFER_SIZE));
+
+		xSemaphoreTake(dev->rx_newData, portMAX_DELAY);
+
+		message.size = dev->rx_size;
+		message.buffer = pvPortMalloc(message.size);
+
+		configASSERT(message.buffer != NULL);
+
+		memcpy(message.buffer, dev->rx_it_buffer, message.size);
+
+		if (xQueueSend(dev->rx_queue, &message, pdMS_TO_TICKS(1000u)) != pdPASS) {
+			vPortFree(message.buffer);
+		}
+
+		dev->rx_size = 0u;		
+	}	
 }
 
 /********************** end of file ******************************************/
